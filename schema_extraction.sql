@@ -62,10 +62,10 @@ FROM read_json_auto('raw_data/StreamingHistory_podcast_0.json');
 
 SELECT 
     COUNT(*) AS total_rows,
+    SUM(endTime IS NULL) AS null_endTime,
+    SUM(podcastName IS NULL) AS null_podcastName,
     SUM(episodeName IS NULL) AS null_episodeName,
-    SUM(showName IS NULL) AS null_showName,
-    SUM(msPlayed IS NULL) AS null_msPlayed,
-    SUM(endTime IS NULL) AS null_endTime
+    SUM(msPlayed IS NULL) AS null_msPlayed
 FROM read_json_auto('raw_data/StreamingHistory_podcast_0.json');
 
 SELECT 
@@ -92,25 +92,40 @@ SELECT *
 FROM read_json_auto('raw_data/Playlist1.json')
 LIMIT 5;
 
-DESCRIBE SELECT *
-FROM read_json_auto('raw_data/Playlist1.json');
+WITH playlists AS (
+    SELECT playlists AS p
+    FROM read_json_auto('raw_data/Playlist1.json')
+)
+SELECT
+    p.name AS playlist_name,
+    p.lastModifiedDate,
+    p.numberOfFollowers,
+    item.track.trackName,
+    item.track.artistName,
+    item.track.albumName,
+    item.track.trackUri,
+    item.addedDate
+FROM playlists,
+UNNEST(p.items) AS item;
 
 SELECT 
     COUNT(*) AS total_rows,
-    SUM(playlistName IS NULL OR playlistName = '') AS null_playlistName,
-    SUM(playlistId IS NULL) AS null_playlistId,
-    SUM(numTracks IS NULL) AS null_numTracks,
-    SUM(lastModified IS NULL) AS null_lastModified
+    SUM(name IS NULL OR name = '') AS null_name,
+    SUM(lastModifiedDate IS NULL) AS null_lastModifiedDate,
+    SUM(items IS NULL) AS null_items,
+    SUM(description IS NULL) AS null_description,
+    SUM(numberOfFollowers IS NULL) AS null_numberOfFollowers
 FROM read_json_auto('raw_data/Playlist1.json');
 
 SELECT DISTINCT
     CASE
-        WHEN REGEXP_MATCHES(lastModified, '^[0-9]{13}$') THEN 'epoch_ms'
-        WHEN REGEXP_MATCHES(lastModified, '^[0-9]{10}$') THEN 'epoch_s'
-        WHEN REGEXP_MATCHES(lastModified, '^[0-9]{4}-[0-9]{2}-[0-9]{2}') THEN 'iso8601'
+        WHEN REGEXP_MATCHES(lastModifiedDate::VARCHAR, '^[0-9]{13}$') THEN 'epoch_ms'
+        WHEN REGEXP_MATCHES(lastModifiedDate::VARCHAR, '^[0-9]{10}$') THEN 'epoch_s'
+        WHEN REGEXP_MATCHES(lastModifiedDate::VARCHAR, '^[0-9]{4}-[0-9]{2}-[0-9]{2}') THEN 'iso8601'
         ELSE 'unknown'
     END AS timestamp_format
-FROM read_json_auto('raw_data/Playlist1.json');
+FROM read_json_auto('raw_data/Playlist1.json')
+WHERE lastModifiedDate IS NOT NULL;
 
 
 ---------------------------------------------------------------------

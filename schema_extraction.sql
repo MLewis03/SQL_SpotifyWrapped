@@ -92,41 +92,33 @@ SELECT *
 FROM read_json_auto('raw_data/Playlist1.json')
 LIMIT 5;
 
-WITH playlists AS (
-    SELECT playlists AS p
-    FROM read_json_auto('raw_data/Playlist1.json')
+WITH playlist_rows AS (
+    SELECT
+        playlist.value AS playlist
+    FROM read_json('raw_data/Playlist1.json'),
+         json_each(playlists) AS playlist
+),
+item_rows AS (
+    SELECT
+        json_extract(playlist, '$.name') AS playlist_name,
+        json_extract(playlist, '$.lastModifiedDate') AS last_modified,
+        json_extract(playlist, '$.items') AS items
+    FROM playlist_rows
+),
+flattened AS (
+    SELECT
+        playlist_name,
+        last_modified,
+        json_extract(item.value, '$.track.trackName') AS track_name,
+        json_extract(item.value, '$.track.artistName') AS artist_name,
+        json_extract(item.value, '$.track.albumName') AS album_name,
+        json_extract(item.value, '$.track.trackUri') AS track_uri,
+        json_extract(item.value, '$.addedDate') AS added_date
+    FROM item_rows,
+         json_each(items) AS item
 )
-SELECT
-    p.name AS playlist_name,
-    p.lastModifiedDate,
-    p.numberOfFollowers,
-    item.track.trackName,
-    item.track.artistName,
-    item.track.albumName,
-    item.track.trackUri,
-    item.addedDate
-FROM playlists,
-UNNEST(p.items) AS item;
-
-SELECT 
-    COUNT(*) AS total_rows,
-    SUM(name IS NULL OR name = '') AS null_name,
-    SUM(lastModifiedDate IS NULL) AS null_lastModifiedDate,
-    SUM(items IS NULL) AS null_items,
-    SUM(description IS NULL) AS null_description,
-    SUM(numberOfFollowers IS NULL) AS null_numberOfFollowers
-FROM read_json_auto('raw_data/Playlist1.json');
-
-SELECT DISTINCT
-    CASE
-        WHEN REGEXP_MATCHES(lastModifiedDate::VARCHAR, '^[0-9]{13}$') THEN 'epoch_ms'
-        WHEN REGEXP_MATCHES(lastModifiedDate::VARCHAR, '^[0-9]{10}$') THEN 'epoch_s'
-        WHEN REGEXP_MATCHES(lastModifiedDate::VARCHAR, '^[0-9]{4}-[0-9]{2}-[0-9]{2}') THEN 'iso8601'
-        ELSE 'unknown'
-    END AS timestamp_format
-FROM read_json_auto('raw_data/Playlist1.json')
-WHERE lastModifiedDate IS NOT NULL;
-
+SELECT *
+FROM flattened;
 
 ---------------------------------------------------------------------
 -- 4. SEARCH QUERIES
@@ -146,13 +138,13 @@ FROM read_json_auto('raw_data/SearchQueries.json');
 -- Check for weird timestamps or query times if present
 SELECT DISTINCT
     CASE
-        WHEN REGEXP_MATCHES(queryTime, '^[0-9]{13}$') THEN 'epoch_ms'
-        WHEN REGEXP_MATCHES(queryTime, '^[0-9]{10}$') THEN 'epoch_s'
-        WHEN REGEXP_MATCHES(queryTime, '^[0-9]{4}-[0-9]{2}-[0-9]{2}') THEN 'iso8601'
+        WHEN REGEXP_MATCHES(searchTime, '^[0-9]{13}$') THEN 'epoch_ms'
+        WHEN REGEXP_MATCHES(searchTime, '^[0-9]{10}$') THEN 'epoch_s'
+        WHEN REGEXP_MATCHES(searchTime, '^[0-9]{4}-[0-9]{2}-[0-9]{2}') THEN 'iso8601'
         ELSE 'unknown'
     END AS timestamp_format
 FROM read_json_auto('raw_data/SearchQueries.json')
-WHERE queryTime IS NOT NULL;
+WHERE searchTime IS NOT NULL;
 
 
 ---------------------------------------------------------------------
@@ -170,18 +162,23 @@ SELECT
     COUNT(*) AS total_rows
 FROM read_json_auto('raw_data/Marquee.json');
 
-
 ---------------------------------------------------------------------
 -- 6. YOUR LIBRARY
 ---------------------------------------------------------------------
 
+WITH rows AS (
+    SELECT value AS track_obj
+    FROM read_json('raw_data/YourLibrary.json'),
+         json_each(tracks)
+),
+flat AS (
+    SELECT
+        json_extract(track_obj, '$.artist') AS artist,
+        json_extract(track_obj, '$.album') AS album,
+        json_extract(track_obj, '$.track') AS track,
+        json_extract(track_obj, '$.uri') AS uri
+    FROM rows
+)
 SELECT *
-FROM read_json_auto('raw_data/YourLibrary.json')
-LIMIT 5;
-
-DESCRIBE SELECT *
-FROM read_json_auto('raw_data/YourLibrary.json');
-
-SELECT 
-    COUNT(*) AS total_rows
-FROM read_json_auto('raw_data/YourLibrary.json');
+FROM flat
+LIMIT 10;
